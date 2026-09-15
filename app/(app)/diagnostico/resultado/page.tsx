@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { DiagnosticoSalvo, obterDiagnostico } from '@/lib/db';
 import { corClasses, formatarData, formatarMoeda, formatarNivel } from '@/lib/cores';
+import { buscarClimaMunicipio, type PrevisaoClima } from '@/lib/clima';
 
 export default function ResultadoPage() {
   return (
@@ -20,6 +21,7 @@ function ResultadoConteudo() {
 
   const [resultado, setResultado] = useState<DiagnosticoSalvo | null | undefined>(undefined);
   const [exportando, setExportando] = useState(false);
+  const [clima, setClima] = useState<PrevisaoClima | null>(null);
 
   useEffect(() => {
     if (!id) {
@@ -30,6 +32,12 @@ function ResultadoConteudo() {
       .then(setResultado)
       .catch(() => setResultado(null));
   }, [id]);
+
+  useEffect(() => {
+    if (resultado?.propriedade?.municipio) {
+      buscarClimaMunicipio(resultado.propriedade.municipio).then(setClima);
+    }
+  }, [resultado]);
 
   async function exportarPDF() {
     if (!resultado) return;
@@ -119,195 +127,236 @@ function ResultadoConteudo() {
   return (
     <main className="p-8 max-w-5xl">
       {resultado === undefined && (
-            <div className="text-sm text-slate-500">Carregando diagnóstico...</div>
-          )}
+        <div className="text-sm text-slate-500">Carregando diagnóstico...</div>
+      )}
 
-          {resultado === null && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center">
-              <div className="text-4xl mb-3">🔍</div>
-              <h1 className="text-lg font-semibold text-slate-800 mb-1">
-                Diagnóstico não encontrado
+      {resultado === null && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center">
+          <div className="text-4xl mb-3">🔍</div>
+          <h1 className="text-lg font-semibold text-slate-800 mb-1">
+            Diagnóstico não encontrado
+          </h1>
+          <p className="text-sm text-slate-500 mb-6">
+            O link pode estar incorreto ou os dados foram limpos deste navegador.
+          </p>
+          <Link
+            href="/diagnostico/novo"
+            className="inline-block bg-green-600 hover:bg-green-700 text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm"
+          >
+            Fazer nova análise
+          </Link>
+        </div>
+      )}
+
+      {resultado && (
+        <>
+          <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
+            <div>
+              <div className="text-xs font-semibold text-green-700 bg-green-50 inline-block px-2.5 py-1 rounded-full mb-2">
+                Milho · {resultado.propriedade.municipio}
+              </div>
+              <h1 className="text-2xl font-bold text-slate-800">
+                {resultado.propriedade.nome}
               </h1>
-              <p className="text-sm text-slate-500 mb-6">
-                O link pode estar incorreto ou os dados foram limpos deste navegador.
+              <p className="text-sm text-slate-500 mt-1">
+                {resultado.propriedade.area_ha} ha · Produtividade esperada:{' '}
+                {resultado.propriedade.produtividade_esperada.toLocaleString('pt-BR')} kg/ha ·
+                Gerado em {formatarData(resultado.gerado_em)}
               </p>
+            </div>
+
+            <div className="flex gap-2">
               <Link
-                href="/diagnostico/novo"
-                className="inline-block bg-green-600 hover:bg-green-700 text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm"
+                href="/diagnosticos"
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2.5 rounded-xl transition text-sm"
               >
-                Fazer nova análise
+                ← Voltar
               </Link>
+              <button
+                onClick={exportarPDF}
+                disabled={exportando}
+                className="bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-semibold px-4 py-2.5 rounded-xl transition text-sm"
+              >
+                {exportando ? 'Exportando...' : '⬇ Exportar PDF'}
+              </button>
+            </div>
+          </div>
+
+          {/* Clima */}
+          {clima && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-6 flex items-center justify-between flex-wrap gap-4">
+              <div>
+                <div className="text-xs font-semibold text-slate-500 mb-1">
+                  Clima agora em {clima.municipio}
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-bold text-slate-800">
+                    {clima.temperatura_atual}°C
+                  </span>
+                  <span className="text-sm text-slate-500">{clima.condicao}</span>
+                </div>
+              </div>
+              <div className="flex gap-6 text-sm">
+                <div>
+                  <div className="text-xs text-slate-400">Sensação</div>
+                  <div className="font-semibold text-slate-700">
+                    {clima.sensacao_termica}°C
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-400">Umidade</div>
+                  <div className="font-semibold text-slate-700">{clima.umidade}%</div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-400">Chance de chuva hoje</div>
+                  <div className="font-semibold text-slate-700">
+                    {clima.chance_chuva_hoje}%
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-400">Chuva prevista</div>
+                  <div className="font-semibold text-slate-700">
+                    {clima.precipitacao_prevista_mm} mm
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
-          {resultado && (
-            <>
-              <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
-                <div>
-                  <div className="text-xs font-semibold text-green-700 bg-green-50 inline-block px-2.5 py-1 rounded-full mb-2">
-                    Milho · {resultado.propriedade.municipio}
-                  </div>
-                  <h1 className="text-2xl font-bold text-slate-800">
-                    {resultado.propriedade.nome}
-                  </h1>
-                  <p className="text-sm text-slate-500 mt-1">
-                    {resultado.propriedade.area_ha} ha · Produtividade esperada:{' '}
-                    {resultado.propriedade.produtividade_esperada.toLocaleString('pt-BR')} kg/ha ·
-                    Gerado em {formatarData(resultado.gerado_em)}
-                  </p>
-                </div>
+          {/* Resumo */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
+            <h2 className="font-semibold text-slate-800 mb-2">Resumo do diagnóstico</h2>
+            <p className="text-sm text-slate-600 leading-relaxed">{resultado.diagnostico.resumo}</p>
 
-                <div className="flex gap-2">
-                  <Link
-                    href="/diagnosticos"
-                    className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2.5 rounded-xl transition text-sm"
+            {resultado.diagnostico.problemas_principais.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {resultado.diagnostico.problemas_principais.map((p, idx) => (
+                  <span
+                    key={idx}
+                    className="text-xs font-medium bg-red-50 text-red-700 border border-red-100 px-3 py-1 rounded-full"
                   >
-                    ← Voltar
-                  </Link>
-                  <button
-                    onClick={exportarPDF}
-                    disabled={exportando}
-                    className="bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-semibold px-4 py-2.5 rounded-xl transition text-sm"
-                  >
-                    {exportando ? 'Exportando...' : '⬇ Exportar PDF'}
-                  </button>
-                </div>
+                    ⚠ {p}
+                  </span>
+                ))}
               </div>
+            )}
+          </div>
 
-              {/* Resumo */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
-                <h2 className="font-semibold text-slate-800 mb-2">Resumo do diagnóstico</h2>
-                <p className="text-sm text-slate-600 leading-relaxed">{resultado.diagnostico.resumo}</p>
-
-                {resultado.diagnostico.problemas_principais.length > 0 && (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {resultado.diagnostico.problemas_principais.map((p, idx) => (
-                      <span
-                        key={idx}
-                        className="text-xs font-medium bg-red-50 text-red-700 border border-red-100 px-3 py-1 rounded-full"
-                      >
-                        ⚠ {p}
+          {/* Interpretação por nutriente */}
+          <div className="mb-6">
+            <h2 className="font-semibold text-slate-800 mb-3">Interpretação da análise de solo</h2>
+            <div className="grid md:grid-cols-3 gap-4">
+              {resultado.diagnostico.interpretacoes.map((item, idx) => {
+                const cores = corClasses(item.cor);
+                return (
+                  <div
+                    key={idx}
+                    className={`bg-white rounded-2xl border ${cores.border} p-5`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-semibold text-slate-700">
+                        {item.parametro}
                       </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Interpretação por nutriente */}
-              <div className="mb-6">
-                <h2 className="font-semibold text-slate-800 mb-3">Interpretação da análise de solo</h2>
-                <div className="grid md:grid-cols-3 gap-4">
-                  {resultado.diagnostico.interpretacoes.map((item, idx) => {
-                    const cores = corClasses(item.cor);
-                    return (
-                      <div
-                        key={idx}
-                        className={`bg-white rounded-2xl border ${cores.border} p-5`}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-semibold text-slate-700">
-                            {item.parametro}
-                          </span>
-                          <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${cores.badge}`}>
-                            {formatarNivel(item.nivel)}
-                          </span>
-                        </div>
-                        <div className="text-2xl font-bold text-slate-800 mb-1">
-                          {item.valor !== null ? item.valor : '—'}{' '}
-                          <span className="text-sm font-normal text-slate-400">{item.unidade}</span>
-                        </div>
-                        <p className="text-xs text-slate-500">{item.mensagem}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Recomendações */}
-              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden mb-6">
-                <div className="p-5 border-b border-slate-100">
-                  <h2 className="font-semibold text-slate-800">Recomendações de manejo</h2>
-                </div>
-                <div className="divide-y divide-slate-100">
-                  {resultado.recomendacao.itens.map((item, idx) => (
-                    <div key={idx} className="p-5 flex items-start justify-between gap-4">
-                      <div>
-                        <div className="font-medium text-slate-800 text-sm">{item.acao}</div>
-                        {item.observacao && (
-                          <p className="text-xs text-slate-500 mt-1 max-w-xl">{item.observacao}</p>
-                        )}
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="font-bold text-green-700">{item.quantidade_ha}</div>
-                        <div className="text-xs text-slate-500">{item.unidade}</div>
-                      </div>
+                      <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${cores.badge}`}>
+                        {formatarNivel(item.nivel)}
+                      </span>
                     </div>
-                  ))}
-                </div>
-                {resultado.recomendacao.observacoes.length > 0 && (
-                  <div className="bg-amber-50 border-t border-amber-100 p-5 space-y-1.5">
-                    {resultado.recomendacao.observacoes.map((obs, idx) => (
-                      <p key={idx} className="text-xs text-amber-900">
-                        ℹ {obs}
-                      </p>
-                    ))}
+                    <div className="text-2xl font-bold text-slate-800 mb-1">
+                      {item.valor !== null ? item.valor : '—'}{' '}
+                      <span className="text-sm font-normal text-slate-400">{item.unidade}</span>
+                    </div>
+                    <p className="text-xs text-slate-500">{item.mensagem}</p>
                   </div>
-                )}
-              </div>
+                );
+              })}
+            </div>
+          </div>
 
-              {/* Estimativa de custo */}
-              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden mb-6">
-                <div className="p-5 border-b border-slate-100">
-                  <h2 className="font-semibold text-slate-800">Estimativa de custo</h2>
+          {/* Recomendações */}
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden mb-6">
+            <div className="p-5 border-b border-slate-100">
+              <h2 className="font-semibold text-slate-800">Recomendações de manejo</h2>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {resultado.recomendacao.itens.map((item, idx) => (
+                <div key={idx} className="p-5 flex items-start justify-between gap-4">
+                  <div>
+                    <div className="font-medium text-slate-800 text-sm">{item.acao}</div>
+                    {item.observacao && (
+                      <p className="text-xs text-slate-500 mt-1 max-w-xl">{item.observacao}</p>
+                    )}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="font-bold text-green-700">{item.quantidade_ha}</div>
+                    <div className="text-xs text-slate-500">{item.unidade}</div>
+                  </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
-                        <th className="px-5 py-3 font-medium">Insumo</th>
-                        <th className="px-5 py-3 font-medium">Quantidade total</th>
-                        <th className="px-5 py-3 font-medium">Preço unitário</th>
-                        <th className="px-5 py-3 font-medium text-right">Custo total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {resultado.custo.itens.map((item, idx) => (
-                        <tr key={idx}>
-                          <td className="px-5 py-3 text-slate-700">{item.descricao}</td>
-                          <td className="px-5 py-3 text-slate-600">
-                            {item.quantidade_total} {item.unidade}
-                          </td>
-                          <td className="px-5 py-3 text-slate-600">
-                            {formatarMoeda(item.preco_unitario)}
-                          </td>
-                          <td className="px-5 py-3 text-right font-medium text-slate-800">
-                            {formatarMoeda(item.custo_total)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="bg-slate-50">
-                        <td className="px-5 py-3 font-semibold text-slate-800" colSpan={3}>
-                          Total da área ({resultado.propriedade.area_ha} ha) · R$/ha:{' '}
-                          {formatarMoeda(resultado.custo.custo_por_ha)}
-                        </td>
-                        <td className="px-5 py-3 text-right font-bold text-green-700">
-                          {formatarMoeda(resultado.custo.custo_total_area)}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
+              ))}
+            </div>
+            {resultado.recomendacao.observacoes.length > 0 && (
+              <div className="bg-amber-50 border-t border-amber-100 p-5 space-y-1.5">
+                {resultado.recomendacao.observacoes.map((obs, idx) => (
+                  <p key={idx} className="text-xs text-amber-900">
+                    ℹ {obs}
+                  </p>
+                ))}
               </div>
+            )}
+          </div>
 
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-sm text-amber-900">
-                <strong>Aviso:</strong> As recomendações são estimativas baseadas em critérios
-                técnicos gerais para milho no Nordeste. Devem ser validadas por profissional
-                habilitado e ajustadas às condições locais.
-              </div>
-            </>
-          )}
+          {/* Estimativa de custo */}
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden mb-6">
+            <div className="p-5 border-b border-slate-100">
+              <h2 className="font-semibold text-slate-800">Estimativa de custo</h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
+                    <th className="px-5 py-3 font-medium">Insumo</th>
+                    <th className="px-5 py-3 font-medium">Quantidade total</th>
+                    <th className="px-5 py-3 font-medium">Preço unitário</th>
+                    <th className="px-5 py-3 font-medium text-right">Custo total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {resultado.custo.itens.map((item, idx) => (
+                    <tr key={idx}>
+                      <td className="px-5 py-3 text-slate-700">{item.descricao}</td>
+                      <td className="px-5 py-3 text-slate-600">
+                        {item.quantidade_total} {item.unidade}
+                      </td>
+                      <td className="px-5 py-3 text-slate-600">
+                        {formatarMoeda(item.preco_unitario)}
+                      </td>
+                      <td className="px-5 py-3 text-right font-medium text-slate-800">
+                        {formatarMoeda(item.custo_total)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-50">
+                    <td className="px-5 py-3 font-semibold text-slate-800" colSpan={3}>
+                      Total da área ({resultado.propriedade.area_ha} ha) · R$/ha:{' '}
+                      {formatarMoeda(resultado.custo.custo_por_ha)}
+                    </td>
+                    <td className="px-5 py-3 text-right font-bold text-green-700">
+                      {formatarMoeda(resultado.custo.custo_total_area)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-sm text-amber-900">
+            <strong>Aviso:</strong> As recomendações são estimativas baseadas em critérios
+            técnicos gerais para milho no Nordeste. Devem ser validadas por profissional
+            habilitado e ajustadas às condições locais.
+          </div>
+        </>
+      )}
     </main>
   );
 }
