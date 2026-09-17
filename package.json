@@ -26,9 +26,12 @@
     "autoprefixer": "^10.0.1",
     "eslint": "^8",
     "eslint-config-next": "14.2.35"
+<<<<<<< HEAD
   },
   "allowScripts": {
     "core-js@3.50.0": true,
     "unrs-resolver@1.12.2": true
+=======
+>>>>>>> bfdad6123ef790729fc9359b7680c28838bd9c78
   }
 }
