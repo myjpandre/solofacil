@@ -7,15 +7,13 @@ import {
   excluirPropriedade,
   listarPropriedades,
 } from '@/lib/db';
-import { LISTA_CULTURAS, configCultura } from '@/lib/culturas';
-import { Cultura, Propriedade } from '@/types';
+import GerenciadorTalhoes from '@/components/GerenciadorTalhoes'; // Ajustar caminho conforme necessário
+import { Propriedade } from '@/types';
 
 const PROPRIEDADE_VAZIA: Propriedade = {
   nome: '',
   municipio: '',
   area_ha: 1,
-  cultura: 'milho',
-  produtividade_esperada: configCultura('milho').produtividadePadrao,
 };
 
 export default function PropriedadesPage() {
@@ -24,6 +22,7 @@ export default function PropriedadesPage() {
   const [form, setForm] = useState<Propriedade>(PROPRIEDADE_VAZIA);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [propriedadeExpandidaId, setPropriedadeExpandidaId] = useState<string | null>(null);
 
   async function carregar() {
     try {
@@ -48,8 +47,8 @@ export default function PropriedadesPage() {
       setErro('Preencha nome e município.');
       return;
     }
-    if (form.area_ha <= 0 || form.produtividade_esperada <= 0) {
-      setErro('Área e produtividade esperada devem ser maiores que zero.');
+    if (form.area_ha <= 0) {
+      setErro('Área deve ser maior que zero.');
       return;
     }
 
@@ -67,16 +66,24 @@ export default function PropriedadesPage() {
   }
 
   async function remover(id: string) {
+    if (
+      !confirm(
+        'Tem certeza que deseja excluir esta propriedade? Todos os talhões e diagnósticos serão removidos.'
+      )
+    )
+      return;
+
     try {
       await excluirPropriedade(id);
       await carregar();
+      setPropriedadeExpandidaId(null);
     } catch (e: any) {
       setErro(e.message ?? 'Não foi possível excluir a propriedade.');
     }
   }
 
   return (
-    <main className="p-8 max-w-3xl">
+    <main className="p-8 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-slate-800">Propriedades</h1>
         <button
@@ -93,6 +100,7 @@ export default function PropriedadesPage() {
         </div>
       )}
 
+      {/* Formulário de nova propriedade */}
       {mostrarForm && (
         <form
           onSubmit={handleSubmit}
@@ -118,7 +126,7 @@ export default function PropriedadesPage() {
                 className="prop-input"
               />
             </Campo>
-            <Campo label="Área (ha)">
+            <Campo label="Área Total (ha)">
               <input
                 type="number"
                 min={0.1}
@@ -130,46 +138,8 @@ export default function PropriedadesPage() {
             </Campo>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Campo label="Cultura">
-              <select
-                value={form.cultura}
-                onChange={(e) => {
-                  const cultura = e.target.value as Cultura;
-                  const config = configCultura(cultura);
-                  setForm((f) => ({
-                    ...f,
-                    cultura,
-                    produtividade_esperada: config.produtividadePadrao,
-                  }));
-                }}
-                className="prop-input"
-              >
-                {LISTA_CULTURAS.map((c) => (
-                  <option key={c.codigo} value={c.codigo}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            </Campo>
-
-            <Campo label={`Produtividade esperada (${configCultura(form.cultura).unidadeProdutividade})`}>
-              <input
-                type="number"
-                min={1}
-                step={100}
-                value={form.produtividade_esperada}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, produtividade_esperada: Number(e.target.value) }))
-                }
-                className="prop-input"
-              />
-            </Campo>
-          </div>
-
-          <p className="text-xs text-slate-400 -mt-2">
-            Valor padrão sugerido ao trocar a cultura — ajuste conforme a realidade da sua
-            propriedade.
+          <p className="text-xs text-slate-400">
+            Após criar a propriedade, você poderá adicionar talhões com culturas diferentes.
           </p>
 
           <div className="flex justify-end pt-2">
@@ -184,6 +154,7 @@ export default function PropriedadesPage() {
         </form>
       )}
 
+      {/* Lista de propriedades */}
       {propriedades === null && <div className="text-sm text-slate-500">Carregando...</div>}
 
       {propriedades && propriedades.length === 0 && !mostrarForm && (
@@ -193,7 +164,7 @@ export default function PropriedadesPage() {
             Nenhuma propriedade cadastrada
           </h2>
           <p className="text-sm text-slate-500 mb-6">
-            Cadastre sua primeira propriedade para agilizar a criação de novas análises.
+            Cadastre sua primeira propriedade para organizar seus talhões e análises.
           </p>
           <button
             onClick={() => setMostrarForm(true)}
@@ -205,28 +176,50 @@ export default function PropriedadesPage() {
       )}
 
       {propriedades && propriedades.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="space-y-4">
           {propriedades.map((p) => (
             <div
               key={p.id}
-              className="p-5 border-b last:border-b-0 border-slate-100 flex items-center justify-between hover:bg-slate-50 transition"
+              className="bg-white rounded-2xl border border-slate-200 overflow-hidden"
             >
-              <div>
-                <div className="font-semibold text-slate-800">
-                  {p.nome} · {configCultura(p.cultura).label}
+              {/* Header da propriedade */}
+              <div className="p-5 flex items-center justify-between hover:bg-slate-50 transition cursor-pointer"
+                onClick={() =>
+                  setPropriedadeExpandidaId(
+                    propriedadeExpandidaId === p.id ? null : p.id
+                  )
+                }
+              >
+                <div className="flex-1">
+                  <div className="font-semibold text-slate-800">{p.nome}</div>
+                  <div className="text-sm text-slate-500 mt-0.5">
+                    📍 {p.municipio} · 📐 {p.area_ha} ha
+                  </div>
                 </div>
-                <div className="text-sm text-slate-500 mt-0.5">
-                  {p.municipio} · {p.area_ha} ha · {p.produtividade_esperada.toLocaleString('pt-BR')}{' '}
-                  {configCultura(p.cultura).unidadeProdutividade} esperado
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    remover(p.id);
+                  }}
+                  className="text-slate-400 hover:text-red-600 transition text-lg ml-4"
+                  title="Excluir propriedade"
+                >
+                  🗑
+                </button>
+                <div className="ml-2 text-slate-400">
+                  {propriedadeExpandidaId === p.id ? '▼' : '▶'}
                 </div>
               </div>
-              <button
-                onClick={() => remover(p.id)}
-                className="text-slate-400 hover:text-red-600 text-sm transition"
-                title="Excluir"
-              >
-                🗑
-              </button>
+
+              {/* Gerenciador de talhões (expandido) */}
+              {propriedadeExpandidaId === p.id && (
+                <div className="border-t border-slate-100 p-5 bg-slate-50">
+                  <GerenciadorTalhoes
+                    propriedadeId={p.id}
+                    propriedadeNome={p.nome}
+                  />
+                </div>
+              )}
             </div>
           ))}
         </div>

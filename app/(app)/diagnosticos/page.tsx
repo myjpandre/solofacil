@@ -1,9 +1,8 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { DiagnosticoSalvo, excluirDiagnostico, listarDiagnosticos } from '@/lib/db';
-import { configCultura } from '@/lib/culturas';
 import { formatarData, formatarMoeda } from '@/lib/cores';
 
 export default function DiagnosticosPage() {
@@ -15,7 +14,7 @@ export default function DiagnosticosPage() {
       setErro(null);
       setDiagnosticos(await listarDiagnosticos());
     } catch (e: any) {
-      setErro(e.message ?? 'Não foi possível carregar os diagnósticos.');
+      setErro(e.message ?? 'NÃ£o foi possÃ­vel carregar os diagnÃ³sticos.');
       setDiagnosticos([]);
     }
   }
@@ -29,19 +28,19 @@ export default function DiagnosticosPage() {
       await excluirDiagnostico(id);
       await carregar();
     } catch (e: any) {
-      setErro(e.message ?? 'Não foi possível excluir o diagnóstico.');
+      setErro(e.message ?? 'NÃ£o foi possÃ­vel excluir o diagnÃ³stico.');
     }
   }
 
   return (
     <main className="p-8">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Meus Diagnósticos</h1>
+        <h1 className="text-2xl font-bold text-slate-800">Meus DiagnÃ³sticos</h1>
         <Link
           href="/diagnostico/novo"
           className="bg-green-600 hover:bg-green-700 text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm"
         >
-          + Nova Análise
+          + Nova AnÃ¡lise
         </Link>
       </div>
 
@@ -57,18 +56,18 @@ export default function DiagnosticosPage() {
 
       {diagnosticos && diagnosticos.length === 0 && (
         <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center">
-          <div className="text-4xl mb-3">📋</div>
+          <div className="text-4xl mb-3">ðŸ“‹</div>
           <h2 className="text-lg font-semibold text-slate-800 mb-1">
-            Nenhum diagnóstico ainda
+            Nenhum diagnÃ³stico ainda
           </h2>
           <p className="text-sm text-slate-500 mb-6">
-            Faça sua primeira análise de solo para ver o diagnóstico e as recomendações aqui.
+            FaÃ§a sua primeira anÃ¡lise de solo para ver o diagnÃ³stico e as recomendaÃ§Ãµes aqui.
           </p>
           <Link
             href="/diagnostico/novo"
             className="inline-block bg-green-600 hover:bg-green-700 text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm"
           >
-            + Nova Análise
+            + Nova AnÃ¡lise
           </Link>
         </div>
       )}
@@ -82,30 +81,30 @@ export default function DiagnosticosPage() {
             >
               <div>
                 <div className="font-semibold text-slate-800">
-                  {d.propriedade.nome} · {configCultura(d.propriedade.cultura).label}
+                  {d.propriedade.nome}
                 </div>
                 <div className="text-sm text-slate-500 mt-0.5">
-                  {d.propriedade.municipio} · {d.propriedade.area_ha} ha ·{' '}
-                  {formatarData(d.gerado_em)} · Custo estimado:{' '}
+                  {d.propriedade.municipio} Â· {d.propriedade.area_ha} ha Â·{' '}
+                  {formatarData(d.gerado_em)} Â· Custo estimado:{' '}
                   {formatarMoeda(d.custo.custo_total_area)}
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <span className="bg-green-100 text-green-700 text-xs font-semibold px-3 py-1 rounded-full">
-                  Concluído
+                  ConcluÃ­do
                 </span>
                 <Link
                   href={`/diagnostico/resultado?id=${d.id}`}
                   className="text-green-700 hover:underline text-sm font-medium"
                 >
-                  Ver detalhes →
+                  Ver detalhes â†’
                 </Link>
                 <button
                   onClick={() => remover(d.id)}
                   className="text-slate-400 hover:text-red-600 text-sm transition"
                   title="Excluir"
                 >
-                  🗑
+                  ðŸ—‘
                 </button>
               </div>
             </div>
@@ -115,3 +114,5 @@ export default function DiagnosticosPage() {
     </main>
   );
 }
+
+

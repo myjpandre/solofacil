@@ -16,8 +16,19 @@ export interface Propriedade {
   nome: string;
   municipio: string;
   area_ha: number;
-  cultura: Cultura;
-  produtividade_esperada: number; // kg/ha
+}
+
+export interface Talhao {
+  id?: string;
+  propriedade_id: string;
+  nome: string;
+  area_hectares: number;
+  cultura_principal?: Cultura | null;
+  produtividade_esperada?: number | null;
+  tipo_uso?: string | null;
+  observacoes?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface DadosSolo {

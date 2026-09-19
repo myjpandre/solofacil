@@ -7,12 +7,13 @@ import {
   RecomendacaoItem,
   EstimativaCusto,
   Propriedade,
+  Talhao,
   ResultadoCompleto,
   Cultura,
 } from '@/types';
 import { configCultura } from './culturas';
 
-export const VERSAO_MOTOR = '1.1.0 — 10 culturas (Ceará/Nordeste)';
+export const VERSAO_MOTOR = '1.2.0 — Arquitetura de Talhões (Ceará/Nordeste)';
 
 // =====================================================
 // MOTOR DE DECISÃO - PROJETO AGRO
@@ -357,13 +358,19 @@ export function gerarDiagnostico(dados: DadosSolo, cultura: Cultura): Diagnostic
   };
 }
 
+// ATENÇÃO: Mudou de Propriedade para Talhao
 export function gerarRecomendacao(
   dados: DadosSolo,
-  propriedade: Propriedade
+  talhao: Talhao
 ): Recomendacao {
   const itens: RecomendacaoItem[] = [];
   const observacoes: string[] = [];
-  const config = configCultura(propriedade.cultura);
+  
+  if (!talhao.cultura_principal) {
+    throw new Error('Talhão não possui cultura principal definida.');
+  }
+  
+  const config = configCultura(talhao.cultura_principal);
 
   // ---------- Calagem (meta de V% específica da cultura) ----------
   const vAtual = dados.v_porcento;
@@ -438,7 +445,7 @@ export function gerarRecomendacao(
 
   // ---------- Nitrogênio (produtividade esperada × fator da cultura) ----------
   if (config.fatorN > 0) {
-    const prodEsperadaTon = propriedade.produtividade_esperada / 1000;
+    const prodEsperadaTon = (talhao.produtividade_esperada ?? 0) / 1000;
     const doseN = Math.round(prodEsperadaTon * config.fatorN);
 
     if (doseN > 0) {
@@ -502,16 +509,22 @@ export function gerarEstimativaCusto(
   };
 }
 
+// ATENÇÃO: Adicionado talhao como parâmetro obrigatório
 export function processarDiagnosticoCompleto(
   propriedade: Propriedade,
+  talhao: Talhao,
   dadosSolo: DadosSolo
 ): ResultadoCompleto {
-  const diagnostico = gerarDiagnostico(dadosSolo, propriedade.cultura);
-  const recomendacao = gerarRecomendacao(dadosSolo, propriedade);
-  const custo = gerarEstimativaCusto(recomendacao, propriedade.area_ha);
+  if (!talhao.cultura_principal) {
+    throw new Error('Cultura principal não definida para o talhão.');
+  }
+  
+  const diagnostico = gerarDiagnostico(dadosSolo, talhao.cultura_principal);
+  const recomendacao = gerarRecomendacao(dadosSolo, talhao);
+  const custo = gerarEstimativaCusto(recomendacao, talhao.area_hectares);
 
   return {
-    propriedade,
+    propriedade, // Mantém a propriedade para info geral
     dados_solo: dadosSolo,
     diagnostico,
     recomendacao,

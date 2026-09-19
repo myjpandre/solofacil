@@ -3,11 +3,18 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { processarDiagnosticoCompleto } from '@/lib/motor';
-import { PropriedadeSalva, criarPropriedade, listarPropriedades, salvarDiagnostico } from '@/lib/db';
-import { LISTA_CULTURAS, configCultura } from '@/lib/culturas';
-import { Cultura, DadosSolo, Propriedade } from '@/types';
+import {
+  PropriedadeSalva,
+  criarPropriedade,
+  listarPropriedades,
+  listarTalhoes,
+  salvarDiagnostico,
+} from '@/lib/db';
+import { configCultura } from '@/lib/culturas';
+import { DadosSolo, Propriedade, Talhao } from '@/types';
 
 type CampoSolo = keyof DadosSolo;
+type Etapa = 1 | 2 | 3;
 
 interface CampoConfig {
   campo: CampoSolo;
@@ -47,18 +54,17 @@ const PROPRIEDADE_VAZIA: Propriedade = {
   nome: '',
   municipio: '',
   area_ha: 1,
-  cultura: 'milho',
-  produtividade_esperada: configCultura('milho').produtividadePadrao,
 };
 
 type ModoPropriedade = 'existente' | 'nova';
 
 export default function NovaAnalisePage() {
   const router = useRouter();
-  const [etapa, setEtapa] = useState<1 | 2>(1);
+  const [etapa, setEtapa] = useState<Etapa>(1);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
+  // ========== Etapa 1: Propriedade ==========
   const [propriedadesExistentes, setPropriedadesExistentes] = useState<PropriedadeSalva[] | null>(
     null
   );
@@ -66,8 +72,15 @@ export default function NovaAnalisePage() {
   const [propriedadeSelecionadaId, setPropriedadeSelecionadaId] = useState<string>('');
   const [novaPropriedade, setNovaPropriedade] = useState<Propriedade>(PROPRIEDADE_VAZIA);
 
+  // ========== Etapa 2: Talhão ==========
+  const [talhoesDisponiveis, setTalhoesDisponiveis] = useState<Talhao[] | null>(null);
+  const [talhaoSelecionadoId, setTalhaoSelecionadoId] = useState<string>('');
+  const [talhaoCarregado, setTalhaoCarregado] = useState<Talhao | null>(null);
+
+  // ========== Etapa 3: Análise de Solo ==========
   const [dadosSolo, setDadosSolo] = useState<DadosSolo>(DADOS_SOLO_INICIAL);
 
+  // Carregar propriedades existentes na primeira renderização
   useEffect(() => {
     listarPropriedades()
       .then((dados) => {
@@ -79,6 +92,34 @@ export default function NovaAnalisePage() {
       })
       .catch(() => setPropriedadesExistentes([]));
   }, []);
+
+  // Carregar talhões quando propriedade for selecionada (etapa 2)
+  useEffect(() => {
+    if (etapa === 2 && propriedadeSelecionadaId) {
+      listarTalhoes(propriedadeSelecionadaId)
+        .then((dados) => {
+          setTalhoesDisponiveis(dados);
+          if (dados.length > 0) {
+            setTalhaoSelecionadoId(dados[0].id ?? '');
+          } else {
+            setTalhaoSelecionadoId('');
+            setErro('Esta propriedade não possui talhões cadastrados. Crie um talhão primeiro.');
+          }
+        })
+        .catch((e) => {
+          setErro(e.message ?? 'Erro ao carregar talhões.');
+          setTalhoesDisponiveis([]);
+        });
+    }
+  }, [etapa, propriedadeSelecionadaId]);
+
+  // Carregar dados do talhão selecionado
+  useEffect(() => {
+    if (talhaoSelecionadoId && talhoesDisponiveis) {
+      const talhao = talhoesDisponiveis.find((t) => t.id === talhaoSelecionadoId);
+      setTalhaoCarregado(talhao ?? null);
+    }
+  }, [talhaoSelecionadoId, talhoesDisponiveis]);
 
   function atualizarSolo(campo: CampoSolo, valor: string) {
     setDadosSolo((prev) => ({
@@ -109,21 +150,41 @@ export default function NovaAnalisePage() {
       setErro('Informe uma área válida (em hectares).');
       return false;
     }
-    if (!novaPropriedade.produtividade_esperada || novaPropriedade.produtividade_esperada <= 0) {
-      setErro('Informe a produtividade esperada.');
+    setErro(null);
+    return true;
+  }
+
+  function validarEtapa2(): boolean {
+    if (!talhaoSelecionadoId) {
+      setErro('Selecione um talhão.');
       return false;
     }
+
+    if (!talhaoCarregado?.cultura_principal) {
+      setErro('O talhão selecionado não possui cultura definida. Edite o talhão e defina uma cultura.');
+      return false;
+    }
+
+    if (talhaoCarregado.produtividade_esperada == null || talhaoCarregado.produtividade_esperada <= 0) {
+      setErro('O talhão selecionado não possui produtividade esperada definida. Edite o talhão.');
+      return false;
+    }
+
     setErro(null);
     return true;
   }
 
   function avancar() {
-    if (validarEtapa1()) setEtapa(2);
+    if (etapa === 1) {
+      if (validarEtapa1()) setEtapa(2);
+    } else if (etapa === 2) {
+      if (validarEtapa2()) setEtapa(3);
+    }
   }
 
   function voltar() {
     setErro(null);
-    setEtapa(1);
+    if (etapa > 1) setEtapa((e) => (e - 1) as Etapa);
   }
 
   async function gerarDiagnostico() {
@@ -151,11 +212,20 @@ export default function NovaAnalisePage() {
         propriedadeCompleta = criada;
       }
 
-      const resultado = processarDiagnosticoCompleto(propriedadeCompleta, dadosSolo);
-      const salvo = await salvarDiagnostico(resultado, propriedadeId);
+      if (!talhaoCarregado) {
+        throw new Error('Talhão não carregado. Tente novamente.');
+      }
+
+      // ✅ CHAMADA CORRETA: propriedade, talhao, dadosSolo
+      const resultado = processarDiagnosticoCompleto(propriedadeCompleta, talhaoCarregado, dadosSolo);
+
+      // ✅ Salvar com talhao_id
+      const salvo = await salvarDiagnostico(resultado, propriedadeId, talhaoCarregado.id);
       router.push(`/diagnostico/resultado?id=${salvo.id}`);
     } catch (e: any) {
-      setErro(e.message ?? 'Não foi possível gerar o diagnóstico. Verifique os dados informados.');
+      setErro(
+        e.message ?? 'Não foi possível gerar o diagnóstico. Verifique os dados informados.'
+      );
       setEnviando(false);
     }
   }
@@ -165,14 +235,17 @@ export default function NovaAnalisePage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-800">Nova Análise</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Informe os dados da propriedade e do laudo de solo para gerar o diagnóstico.
+          Selecione a propriedade e talhão, informe os dados do solo para gerar o diagnóstico.
         </p>
       </div>
 
+      {/* Steps */}
       <div className="flex items-center gap-3 mb-8">
         <StepPill numero={1} titulo="Propriedade" ativa={etapa === 1} concluida={etapa > 1} />
         <div className="flex-1 h-px bg-slate-200" />
-        <StepPill numero={2} titulo="Análise de solo" ativa={etapa === 2} concluida={false} />
+        <StepPill numero={2} titulo="Talhão" ativa={etapa === 2} concluida={etapa > 2} />
+        <div className="flex-1 h-px bg-slate-200" />
+        <StepPill numero={3} titulo="Análise" ativa={etapa === 3} concluida={false} />
       </div>
 
       {erro && (
@@ -181,6 +254,7 @@ export default function NovaAnalisePage() {
         </div>
       )}
 
+      {/* ========== ETAPA 1: PROPRIEDADE ========== */}
       {etapa === 1 && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
           {propriedadesExistentes === null && (
@@ -193,10 +267,12 @@ export default function NovaAnalisePage() {
                 type="button"
                 onClick={() => setModoPropriedade('existente')}
                 className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${
-                  modoPropriedade === 'existente' ? 'bg-white shadow text-slate-800' : 'text-slate-500'
+                  modoPropriedade === 'existente'
+                    ? 'bg-white shadow text-slate-800'
+                    : 'text-slate-500'
                 }`}
               >
-                Usar propriedade existente
+                Usar existente
               </button>
               <button
                 type="button"
@@ -217,9 +293,10 @@ export default function NovaAnalisePage() {
                 onChange={(e) => setPropriedadeSelecionadaId(e.target.value)}
                 className="input"
               >
+                <option value="">-- Selecione --</option>
                 {propriedadesExistentes.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.nome} · {configCultura(p.cultura).label} · {p.municipio} · {p.area_ha} ha
+                    {p.nome} · {p.municipio} · {p.area_ha} ha
                   </option>
                 ))}
               </select>
@@ -232,7 +309,9 @@ export default function NovaAnalisePage() {
                 <input
                   type="text"
                   value={novaPropriedade.nome}
-                  onChange={(e) => setNovaPropriedade((p) => ({ ...p, nome: e.target.value }))}
+                  onChange={(e) =>
+                    setNovaPropriedade((p) => ({ ...p, nome: e.target.value }))
+                  }
                   placeholder="Ex: Fazenda Boa Esperança"
                   className="input"
                 />
@@ -258,50 +337,9 @@ export default function NovaAnalisePage() {
                     step={0.1}
                     value={novaPropriedade.area_ha}
                     onChange={(e) =>
-                      setNovaPropriedade((p) => ({ ...p, area_ha: Number(e.target.value) }))
-                    }
-                    className="input"
-                  />
-                </Campo>
-              </div>
-
-              <div className="grid grid-cols-2 gap-5">
-                <Campo label="Cultura">
-                  <select
-                    value={novaPropriedade.cultura}
-                    onChange={(e) => {
-                      const cultura = e.target.value as Cultura;
-                      const config = configCultura(cultura);
                       setNovaPropriedade((p) => ({
                         ...p,
-                        cultura,
-                        produtividade_esperada: config.produtividadePadrao,
-                      }));
-                    }}
-                    className="input"
-                  >
-                    {LISTA_CULTURAS.map((c) => (
-                      <option key={c.codigo} value={c.codigo}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </select>
-                </Campo>
-
-                <Campo
-                  label={`Produtividade esperada (${
-                    configCultura(novaPropriedade.cultura).unidadeProdutividade
-                  })`}
-                >
-                  <input
-                    type="number"
-                    min={1}
-                    step={100}
-                    value={novaPropriedade.produtividade_esperada}
-                    onChange={(e) =>
-                      setNovaPropriedade((p) => ({
-                        ...p,
-                        produtividade_esperada: Number(e.target.value),
+                        area_ha: Number(e.target.value),
                       }))
                     }
                     className="input"
@@ -309,9 +347,8 @@ export default function NovaAnalisePage() {
                 </Campo>
               </div>
 
-              <p className="text-xs text-slate-400 -mt-2">
-                Valor padrão sugerido ao trocar a cultura — ajuste conforme a realidade da sua
-                propriedade.
+              <p className="text-xs text-slate-400">
+                Após criar a propriedade, você precisará criar um talhão e definir a cultura.
               </p>
             </>
           )}
@@ -327,11 +364,92 @@ export default function NovaAnalisePage() {
         </div>
       )}
 
+      {/* ========== ETAPA 2: TALHÃO ========== */}
       {etapa === 2 && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
+          <div>
+            <h3 className="font-semibold text-slate-800 mb-1">Propriedade selecionada</h3>
+            <p className="text-sm text-slate-600">
+              {propriedadesExistentes?.find((p) => p.id === propriedadeSelecionadaId)?.nome ||
+                novaPropriedade.nome}
+            </p>
+          </div>
+
+          {talhoesDisponiveis === null && (
+            <div className="text-sm text-slate-500">Carregando talhões...</div>
+          )}
+
+          {talhoesDisponiveis && talhoesDisponiveis.length === 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900">
+              <strong>Aviso:</strong> Esta propriedade não possui talhões.{' '}
+              <a href="/propriedades" className="underline font-semibold hover:text-amber-700">
+                Crie um talhão primeiro.
+              </a>
+            </div>
+          )}
+
+          {talhoesDisponiveis && talhoesDisponiveis.length > 0 && (
+            <Campo label="Talhão">
+              <select
+                value={talhaoSelecionadoId}
+                onChange={(e) => setTalhaoSelecionadoId(e.target.value)}
+                className="input"
+              >
+                <option value="">-- Selecione --</option>
+                {talhoesDisponiveis.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nome} · {t.area_hectares} ha ·{' '}
+                    {t.cultura_principal
+                      ? configCultura(t.cultura_principal).label
+                      : 'Sem cultura'}
+                  </option>
+                ))}
+              </select>
+            </Campo>
+          )}
+
+          {talhaoCarregado && talhaoCarregado.cultura_principal && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <h4 className="font-semibold text-green-900 mb-2">Informações do talhão</h4>
+              <div className="space-y-1 text-sm text-green-800">
+                <div>
+                  <strong>Cultura:</strong> {configCultura(talhaoCarregado.cultura_principal).label}
+                </div>
+                <div>
+                  <strong>Área:</strong> {talhaoCarregado.area_hectares} ha
+                </div>
+                <div>
+                  <strong>Produtividade esperada:</strong> {talhaoCarregado.produtividade_esperada}{' '}
+                  {configCultura(talhaoCarregado.cultura_principal).unidadeProdutividade}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-between pt-2">
+            <button
+              onClick={voltar}
+              className="text-slate-600 hover:text-slate-800 font-medium px-4 py-2.5 text-sm"
+            >
+              ← Voltar
+            </button>
+            <button
+              onClick={avancar}
+              disabled={!talhaoSelecionadoId}
+              className="bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold px-6 py-2.5 rounded-xl transition text-sm"
+            >
+              Continuar →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ========== ETAPA 3: ANÁLISE DE SOLO ========== */}
+      {etapa === 3 && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <p className="text-sm text-slate-500 mb-5">
-            Informe os valores do laudo de análise de solo. Campos não preenchidos serão
-            marcados como &ldquo;não informado&rdquo; no diagnóstico.
+            Informe os valores do laudo de análise de solo. Campos não preenchidos serão marcados
+            como "não informado" no diagnóstico.
           </p>
 
           <div className="grid grid-cols-2 gap-5">

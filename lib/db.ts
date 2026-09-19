@@ -6,6 +6,7 @@ import {
   Propriedade,
   Recomendacao,
   ResultadoCompleto,
+  Talhao,
 } from '@/types';
 
 // =====================================================
@@ -22,6 +23,7 @@ export interface PropriedadeSalva extends Propriedade {
 export interface DiagnosticoSalvo {
   id: string;
   propriedade: PropriedadeSalva;
+  talhao_id?: string; // Adicionado para a nova arquitetura
   dados_solo: DadosSolo;
   diagnostico: Diagnostico;
   recomendacao: Recomendacao;
@@ -42,8 +44,7 @@ function mapPropriedade(row: any): PropriedadeSalva {
     nome: row.nome,
     municipio: row.municipio,
     area_ha: Number(row.area_ha),
-    cultura: row.cultura,
-    produtividade_esperada: Number(row.produtividade_esperada),
+    // cultura e produtividade_esperada removidos (agora pertencem ao Talhão)
   };
 }
 
@@ -51,6 +52,7 @@ function mapDiagnostico(row: any): DiagnosticoSalvo {
   return {
     id: row.id,
     propriedade: mapPropriedade(row.propriedades),
+    talhao_id: row.talhao_id, // Adicionado
     dados_solo: row.dados_solo,
     diagnostico: row.diagnostico,
     recomendacao: row.recomendacao,
@@ -82,8 +84,6 @@ export async function criarPropriedade(propriedade: Propriedade): Promise<Propri
       nome: propriedade.nome,
       municipio: propriedade.municipio,
       area_ha: propriedade.area_ha,
-      cultura: propriedade.cultura,
-      produtividade_esperada: propriedade.produtividade_esperada,
     })
     .select()
     .single();
@@ -96,11 +96,59 @@ export async function excluirPropriedade(id: string): Promise<void> {
   if (error) throw error;
 }
 
+// ---------- Talhões ----------
+
+export async function listarTalhoes(
+  propriedadeId: string
+): Promise<Talhao[]> {
+  const { data, error } = await db()
+    .from('talhoes')
+    .select('*')
+    .eq('propriedade_id', propriedadeId)
+    .order('created_at', { ascending: true });
+
+  if (error) throw error;
+
+  return data ?? [];
+}
+
+export async function criarTalhao(
+  talhao: Talhao
+): Promise<Talhao> {
+  const { data, error } = await db()
+    .from('talhoes')
+    .insert({
+      propriedade_id: talhao.propriedade_id,
+      nome: talhao.nome,
+      area_hectares: talhao.area_hectares,
+      cultura_principal: talhao.cultura_principal ?? null,
+      produtividade_esperada: talhao.produtividade_esperada ?? null, // Adicionado
+      tipo_uso: talhao.tipo_uso ?? null,
+      observacoes: talhao.observacoes ?? null,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return data;
+}
+
+export async function excluirTalhao(id: string): Promise<void> {
+  const { error } = await db()
+    .from('talhoes')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw error;
+}
+
 // ---------- Diagnósticos ----------
 
 export async function salvarDiagnostico(
   resultado: ResultadoCompleto,
-  propriedadeId: string
+  propriedadeId: string,
+  talhaoId?: string // Novo parâmetro opcional
 ): Promise<DiagnosticoSalvo> {
   const sb = db();
   const { data: userData, error: userError } = await sb.auth.getUser();
@@ -111,6 +159,7 @@ export async function salvarDiagnostico(
     .insert({
       user_id: userData.user.id,
       propriedade_id: propriedadeId,
+      talhao_id: talhaoId ?? null, // Adicionado vínculo
       dados_solo: resultado.dados_solo,
       diagnostico: resultado.diagnostico,
       recomendacao: resultado.recomendacao,
