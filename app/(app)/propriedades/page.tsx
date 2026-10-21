@@ -7,13 +7,14 @@ import {
   excluirPropriedade,
   listarPropriedades,
 } from '@/lib/db';
-import GerenciadorTalhoes from '@/components/GerenciadorTalhoes'; // Ajustar caminho conforme necessário
+import GerenciadorTalhoes from '@/components/GerenciadorTalhoes';
 import { Propriedade } from '@/types';
 
 const PROPRIEDADE_VAZIA: Propriedade = {
   nome: '',
   municipio: '',
   area_ha: 1,
+  produtividade_esperada: 0,
 };
 
 export default function PropriedadesPage() {
@@ -51,11 +52,11 @@ export default function PropriedadesPage() {
       setErro('Área deve ser maior que zero.');
       return;
     }
-
     if (!form.produtividade_esperada || form.produtividade_esperada <= 0) {
-  setErro('Informe a produtividade esperada.');
-  return;
+      setErro('Informe a produtividade esperada.');
+      return;
     }
+
     setSalvando(true);
     try {
       await criarPropriedade(form);
@@ -104,7 +105,6 @@ export default function PropriedadesPage() {
         </div>
       )}
 
-      {/* Formulário de nova propriedade */}
       {mostrarForm && (
         <form
           onSubmit={handleSubmit}
@@ -141,17 +141,17 @@ export default function PropriedadesPage() {
               />
             </Campo>
             <Campo label="Produtividade esperada">
-  <input
-    type="number"
-    min={0}
-    step={0.1}
-    value={form.produtividade_esperada || ''}
-    onChange={(e) =>
-      setForm((f) => ({ ...f, produtividade_esperada: Number(e.target.value) }))
-    }
-    className="prop-input"
-  />
-</Campo>
+              <input
+                type="number"
+                min={0}
+                step={0.1}
+                value={form.produtividade_esperada || ''}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, produtividade_esperada: Number(e.target.value) }))
+                }
+                className="prop-input"
+              />
+            </Campo>
           </div>
 
           <p className="text-xs text-slate-400">
@@ -170,7 +170,6 @@ export default function PropriedadesPage() {
         </form>
       )}
 
-      {/* Lista de propriedades */}
       {propriedades === null && <div className="text-sm text-slate-500">Carregando...</div>}
 
       {propriedades && propriedades.length === 0 && !mostrarForm && (
@@ -198,12 +197,10 @@ export default function PropriedadesPage() {
               key={p.id}
               className="bg-white rounded-2xl border border-slate-200 overflow-hidden"
             >
-              {/* Header da propriedade */}
-              <div className="p-5 flex items-center justify-between hover:bg-slate-50 transition cursor-pointer"
+              <div
+                className="p-5 flex items-center justify-between hover:bg-slate-50 transition cursor-pointer"
                 onClick={() =>
-                  setPropriedadeExpandidaId(
-                    propriedadeExpandidaId === p.id ? null : p.id
-                  )
+                  setPropriedadeExpandidaId(propriedadeExpandidaId === p.id ? null : p.id)
                 }
               >
                 <div className="flex-1">
@@ -227,13 +224,9 @@ export default function PropriedadesPage() {
                 </div>
               </div>
 
-              {/* Gerenciador de talhões (expandido) */}
               {propriedadeExpandidaId === p.id && (
                 <div className="border-t border-slate-100 p-5 bg-slate-50">
-                  <GerenciadorTalhoes
-                    propriedadeId={p.id}
-                    propriedadeNome={p.nome}
-                  />
+                  <GerenciadorTalhoes propriedadeId={p.id} propriedadeNome={p.nome} />
                 </div>
               )}
             </div>
