@@ -84,6 +84,7 @@ export async function criarPropriedade(propriedade: Propriedade): Promise<Propri
       nome: propriedade.nome,
       municipio: propriedade.municipio,
       area_ha: propriedade.area_ha,
+      produtividade_esperada: propriedade.produtividade_esperada,
     })
     .select()
     .single();
