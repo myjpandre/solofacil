@@ -52,6 +52,10 @@ export default function PropriedadesPage() {
       return;
     }
 
+    if (!form.produtividade_esperada || form.produtividade_esperada <= 0) {
+  setErro('Informe a produtividade esperada.');
+  return;
+    }
     setSalvando(true);
     try {
       await criarPropriedade(form);
@@ -136,6 +140,18 @@ export default function PropriedadesPage() {
                 className="prop-input"
               />
             </Campo>
+            <Campo label="Produtividade esperada">
+  <input
+    type="number"
+    min={0}
+    step={0.1}
+    value={form.produtividade_esperada || ''}
+    onChange={(e) =>
+      setForm((f) => ({ ...f, produtividade_esperada: Number(e.target.value) }))
+    }
+    className="prop-input"
+  />
+</Campo>
           </div>
 
           <p className="text-xs text-slate-400">
