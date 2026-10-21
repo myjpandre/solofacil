@@ -16,6 +16,7 @@ export interface Propriedade {
   nome: string;
   municipio: string;
   area_ha: number;
+  produtividade_esperada: number;
 }
 
 export interface Talhao {
